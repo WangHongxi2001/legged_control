@@ -1,0 +1,13 @@
+{
+    "python.autoComplete.extraPaths": [
+        "/home/ubuntu/catkin_ws/devel/lib/python3/dist-packages",
+        "/opt/ros/noetic/lib/python3/dist-packages",
+        "/opt/openrobots/lib/python3.8/site-packages"
+    ],
+    "python.analysis.extraPaths": [
+        "/home/ubuntu/catkin_ws/devel/lib/python3/dist-packages",
+        "/opt/ros/noetic/lib/python3/dist-packages",
+        "/opt/openrobots/lib/python3.8/site-packages"
+    ],
+    "ros.distro": "noetic"
+}
