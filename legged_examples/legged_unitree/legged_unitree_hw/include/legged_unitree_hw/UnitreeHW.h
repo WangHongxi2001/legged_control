@@ -5,10 +5,15 @@
 
 #pragma once
 
-#include "unitree_legged_sdk/safety.h"
-#include "unitree_legged_sdk/udp.h"
-
 #include <legged_hw/LeggedHW.h>
+
+#ifdef UNITREE_SDK_3_3_1
+#include "unitree_legged_sdk_3_3_1/safety.h"
+#include "unitree_legged_sdk_3_3_1/udp.h"
+#elif UNITREE_SDK_3_8_0
+#include "unitree_legged_sdk_3_8_0/udp.h"
+#include "unitree_legged_sdk_3_8_0/safety.h"
+#endif
 
 namespace legged {
 const std::vector<std::string> CONTACT_SENSOR_NAMES = {"RF_FOOT", "LF_FOOT", "RH_FOOT", "LH_FOOT"};
@@ -60,6 +65,8 @@ class UnitreeHW : public LeggedHW {
    */
   void write(const ros::Time& time, const ros::Duration& period) override;
 
+  void updateJoystick(const ros::Time& time);
+
  private:
   bool setupJoints();
 
@@ -78,6 +85,9 @@ class UnitreeHW : public LeggedHW {
 
   int powerLimit_{};
   int contactThreshold_{};
+
+  ros::Publisher joyPublisher_;
+  ros::Time lastPub_;
 };
 
 }  // namespace legged

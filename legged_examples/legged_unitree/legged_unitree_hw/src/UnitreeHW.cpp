@@ -5,6 +5,14 @@
 
 #include "legged_unitree_hw/UnitreeHW.h"
 
+#ifdef UNITREE_SDK_3_3_1
+#include "unitree_legged_sdk_3_3_1/unitree_joystick.h"
+#elif UNITREE_SDK_3_8_0
+#include "unitree_legged_sdk_3_8_0/joystick.h"
+#endif
+
+#include <sensor_msgs/Joy.h>
+
 namespace legged {
 bool UnitreeHW::init(ros::NodeHandle& root_nh, ros::NodeHandle& robot_hw_nh) {
   if (!LeggedHW::init(root_nh, robot_hw_nh)) {
@@ -17,23 +25,37 @@ bool UnitreeHW::init(ros::NodeHandle& root_nh, ros::NodeHandle& robot_hw_nh) {
   setupImu();
   setupContactSensor(robot_hw_nh);
 
+#ifdef UNITREE_SDK_3_3_1
   udp_ = std::make_shared<UNITREE_LEGGED_SDK::UDP>(UNITREE_LEGGED_SDK::LOWLEVEL);
+#elif UNITREE_SDK_3_8_0
+  udp_ = std::make_shared<UNITREE_LEGGED_SDK::UDP>(UNITREE_LEGGED_SDK::LOWLEVEL, 8090, "192.168.123.10", 8007);
+#endif
+
   udp_->InitCmdData(lowCmd_);
 
   std::string robot_type;
   root_nh.getParam("robot_type", robot_type);
+#ifdef UNITREE_SDK_3_3_1
   if (robot_type == "a1") {
     safety_ = std::make_shared<UNITREE_LEGGED_SDK::Safety>(UNITREE_LEGGED_SDK::LeggedType::A1);
   } else if (robot_type == "aliengo") {
     safety_ = std::make_shared<UNITREE_LEGGED_SDK::Safety>(UNITREE_LEGGED_SDK::LeggedType::Aliengo);
-  } else {
+  }
+#elif UNITREE_SDK_3_8_0
+  if (robot_type == "go1"){
+    safety_ = std::make_shared<UNITREE_LEGGED_SDK::Safety>(UNITREE_LEGGED_SDK::LeggedType::Go1);
+  }
+#endif
+  else {
     ROS_FATAL("Unknown robot type: %s", robot_type.c_str());
     return false;
   }
+
+  joyPublisher_ = root_nh.advertise<sensor_msgs::Joy>("/joy", 10);
   return true;
 }
 
-void UnitreeHW::read(const ros::Time& /*time*/, const ros::Duration& /*period*/) {
+void UnitreeHW::read(const ros::Time& time, const ros::Duration& /*period*/) {
   udp_->Recv();
   udp_->GetRecv(lowState_);
 
@@ -66,6 +88,8 @@ void UnitreeHW::read(const ros::Time& /*time*/, const ros::Duration& /*period*/)
     handle.setVelocityDesired(0.);
     handle.setKd(3.);
   }
+
+  updateJoystick(time);
 }
 
 void UnitreeHW::write(const ros::Time& /*time*/, const ros::Duration& /*period*/) {
@@ -139,6 +163,31 @@ bool UnitreeHW::setupContactSensor(ros::NodeHandle& nh) {
     contactSensorInterface_.registerHandle(ContactSensorHandle(CONTACT_SENSOR_NAMES[i], &contactState_[i]));
   }
   return true;
+}
+
+void UnitreeHW::updateJoystick(const ros::Time& time) {
+  if ((time - lastPub_).toSec() < 1 / 50.) {
+    return;
+  }
+  lastPub_ = time;
+  xRockerBtnDataStruct keyData;
+  memcpy(&keyData, &lowState_.wirelessRemote[0], 40);
+  sensor_msgs::Joy joyMsg;  // Pack as same as Logitech F710
+  joyMsg.axes.push_back(-keyData.lx);
+  joyMsg.axes.push_back(keyData.ly);
+  joyMsg.axes.push_back(-keyData.rx);
+  joyMsg.axes.push_back(keyData.ry);
+  joyMsg.buttons.push_back(keyData.btn.components.X);
+  joyMsg.buttons.push_back(keyData.btn.components.A);
+  joyMsg.buttons.push_back(keyData.btn.components.B);
+  joyMsg.buttons.push_back(keyData.btn.components.Y);
+  joyMsg.buttons.push_back(keyData.btn.components.L1);
+  joyMsg.buttons.push_back(keyData.btn.components.R1);
+  joyMsg.buttons.push_back(keyData.btn.components.L2);
+  joyMsg.buttons.push_back(keyData.btn.components.R2);
+  joyMsg.buttons.push_back(keyData.btn.components.select);
+  joyMsg.buttons.push_back(keyData.btn.components.start);
+  joyPublisher_.publish(joyMsg);
 }
 
 }  // namespace legged
